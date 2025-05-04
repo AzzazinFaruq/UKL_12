@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"backend_golang/models"
 	"backend_golang/middlewares"
+	"backend_golang/models"
 	"backend_golang/setup"
 	"net/http"
 	"time"
@@ -18,7 +18,6 @@ func GetAllDiskon(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
-
 
 	if err := setup.DB.Find(&diskon).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -44,7 +43,6 @@ func GetDiskonById(c *gin.Context) {
 }
 
 func AddDiskon(c *gin.Context) {
-
 	// Cek role admin
 	middlewares.Admin(c)
 	if c.IsAborted() {
@@ -54,29 +52,78 @@ func AddDiskon(c *gin.Context) {
 	var input struct {
 		NamaDiskon       string `json:"nama_diskon" binding:"required"`
 		PresentaseDiskon string `json:"presentase_diskon" binding:"required"`
-		TanggalAwal      time.Time `json:"tanggal_awal" binding:"required"`
-		TanggalAkhir     time.Time `json:"tanggal_akhir" binding:"required"`
+		TanggalAwal      string `json:"tanggal_awal" binding:"required"`
+		TanggalAkhir     string `json:"tanggal_akhir" binding:"required"`
+		MenuId           int64  `json:"menu_id" binding:"required"`
+		StanId           int64  `json:"stan_id" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(input); err != nil {
+	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-
-	diskon := models.Diskon{
-		NamaDiskon: input.NamaDiskon,
-		PresentaseDiskon: input.PresentaseDiskon,
-		TanggalAwal: input.TanggalAwal,
-		TanggalAkhir: input.TanggalAkhir,
-	}
-
-	if err := setup.DB.Create(&diskon).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	// Parse tanggal
+	tanggalAwal, err := time.Parse("2006-01-02", input.TanggalAwal)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal_awal tidak valid. Gunakan format YYYY-MM-DD"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Diskon created successfully"})
+	tanggalAkhir, err := time.Parse("2006-01-02", input.TanggalAkhir)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal_akhir tidak valid. Gunakan format YYYY-MM-DD"})
+		return
+	}
+
+	// Mulai transaksi database
+	tx := setup.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memulai transaksi database"})
+		return
+	}
+
+	// Buat diskon
+	diskon := models.Diskon{
+		NamaDiskon:       input.NamaDiskon,
+		PresentaseDiskon: input.PresentaseDiskon,
+		TanggalAwal:      tanggalAwal,
+		TanggalAkhir:     tanggalAkhir,
+	}
+
+	if err := tx.Create(&diskon).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat diskon"})
+		return
+	}
+
+	// Buat relasi menu_diskon
+	menuDiskon := models.MenuDiskon{
+		MenuId:   input.MenuId,
+		DiskonId: diskon.Id,
+		StanId:   input.StanId,
+	}
+
+	if err := tx.Create(&menuDiskon).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghubungkan diskon dengan menu"})
+		return
+	}
+
+	// Commit transaksi
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan diskon"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Diskon berhasil dibuat",
+		"data": gin.H{
+			"diskon":      diskon,
+			"menu_diskon": menuDiskon,
+		},
+	})
 }
 
 func UpdateDiskon(c *gin.Context) {
@@ -94,8 +141,8 @@ func UpdateDiskon(c *gin.Context) {
 	}
 
 	var input struct {
-		NamaDiskon       string `json:"nama_diskon" binding:"required"`
-		PresentaseDiskon string `json:"presentase_diskon" binding:"required"`
+		NamaDiskon       string    `json:"nama_diskon" binding:"required"`
+		PresentaseDiskon string    `json:"presentase_diskon" binding:"required"`
 		TanggalAwal      time.Time `json:"tanggal_awal" binding:"required"`
 		TanggalAkhir     time.Time `json:"tanggal_akhir" binding:"required"`
 	}
@@ -106,17 +153,17 @@ func UpdateDiskon(c *gin.Context) {
 	}
 
 	diskon := models.Diskon{
-		NamaDiskon: input.NamaDiskon,
+		NamaDiskon:       input.NamaDiskon,
 		PresentaseDiskon: input.PresentaseDiskon,
-		TanggalAwal: input.TanggalAwal,
-		TanggalAkhir: input.TanggalAkhir,
+		TanggalAwal:      input.TanggalAwal,
+		TanggalAkhir:     input.TanggalAkhir,
 	}
 
 	if err := setup.DB.Save(&diskon).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 }
 
 func DeleteDiskon(c *gin.Context) {
@@ -128,11 +175,43 @@ func DeleteDiskon(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
-	
+
 	if err := setup.DB.Delete(&diskon, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Diskon deleted successfully"})
+}
+
+func AddDiskonToMenu(c *gin.Context) {
+	// Cek role admin
+	middlewares.Admin(c)
+	if c.IsAborted() {
+		return
+	}
+
+	var input struct {
+		MenuId   int64 `json:"menu_id" binding:"required"`
+		DiskonId int64 `json:"diskon_id" binding:"required"`
+		StanId   int64 `json:"stan_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	menuDiskon := models.MenuDiskon{
+		MenuId:   input.MenuId,
+		DiskonId: input.DiskonId,
+		StanId:   input.StanId,
+	}
+
+	if err := setup.DB.Create(&menuDiskon).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Diskon berhasil ditambahkan ke menu"})
 }

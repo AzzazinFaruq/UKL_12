@@ -96,13 +96,11 @@ func UpdateMenu(c *gin.Context) {
 	// Mendapatkan ID menu dari parameter URL
 	id := c.Param("id")
 
-
 	// Cek role admin
 	middlewares.Admin(c)
 	if c.IsAborted() {
 		return
 	}
-
 
 	// Mencari menu berdasarkan ID
 	if err := setup.DB.First(&menu, id).Error; err != nil {
@@ -181,4 +179,31 @@ func DeleteMenu(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Menu Berhasil Dihapus"})
+}
+
+// GetMenuByStand mendapatkan menu berdasarkan stand ID
+func GetMenuByStand(c *gin.Context) {
+	// Ambil stand_id dari parameter
+	standId := c.Param("stand_id")
+
+	// Konversi stand_id ke int64
+	standIdInt, err := strconv.ParseInt(standId, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format stand_id tidak valid"})
+		return
+	}
+
+	// Cari menu berdasarkan stand_id
+	var menu []models.Menu
+	if err := setup.DB.
+		Where("stan_id = ?", standIdInt).
+		Find(&menu).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data menu"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"stand_id": standIdInt,
+		"data":     menu,
+	})
 }

@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	"backend_golang/middlewares"
 	"backend_golang/models"
 	"backend_golang/setup"
-	"backend_golang/middlewares"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,7 +14,7 @@ import (
 )
 
 func GetSiswa(c *gin.Context) {
-	var siswa models.Siswa
+	var siswa []models.Siswa
 
 	// Cek role admin
 	middlewares.Admin(c)
@@ -164,4 +164,46 @@ func DeleteSiswa(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Siswa deleted successfully"})
+}
+
+// GetSiswaByStand mendapatkan data siswa berdasarkan stand ID
+func GetSiswaByStand(c *gin.Context) {
+	// Ambil stand_id dari parameter
+	standId := c.Param("stand_id")
+
+	// Konversi stand_id ke int64
+	standIdInt, err := strconv.ParseInt(standId, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid stand_id format"})
+		return
+	}
+
+	// Cari transaksi berdasarkan stand_id
+	var transaksis []models.Transaksi
+	if err := setup.DB.
+		Where("stan_id = ?", standIdInt).
+		Preload("Siswa").
+		Find(&transaksis).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transactions"})
+		return
+	}
+
+	// Buat map untuk menyimpan siswa unik
+	siswaMap := make(map[int64]models.Siswa)
+	for _, t := range transaksis {
+		if t.Siswa.Id != 0 { // Pastikan siswa ada
+			siswaMap[t.Siswa.Id] = t.Siswa
+		}
+	}
+
+	// Konversi map ke slice
+	var siswa []models.Siswa
+	for _, s := range siswaMap {
+		siswa = append(siswa, s)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"stand_id": standIdInt,
+		"data":     siswa,
+	})
 }

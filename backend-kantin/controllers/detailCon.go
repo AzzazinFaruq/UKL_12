@@ -3,11 +3,14 @@ package controllers
 import (
 	"backend_golang/models"
 	"backend_golang/setup"
+	"bytes"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
 )
 
 func GetDetail(c *gin.Context) {
@@ -123,4 +126,87 @@ func CreateDetail(c *gin.Context) {
 			"harga_setelah_diskon": hargaDiskon,
 		},
 	})
+}
+
+func PrintNota(c *gin.Context) {
+	// Ambil ID transaksi dari parameter
+	transaksiID := c.Param("id")
+
+	// Cari detail transaksi berdasarkan ID transaksi
+	var details []models.Detail
+	if err := setup.DB.
+		Preload("Menu").
+		Preload("Transaksi").
+		Preload("Transaksi.Siswa").
+		Where("transaksi_id = ?", transaksiID).
+		Find(&details).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transaction details"})
+		return
+	}
+
+	if len(details) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Transaction not found"})
+		return
+	}
+
+	// Buat PDF baru
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+
+	// Set font
+	pdf.SetFont("Arial", "B", 16)
+	pdf.Cell(40, 10, "NOTA PEMBELIAN")
+	pdf.Ln(20)
+
+	// Informasi transaksi
+	pdf.SetFont("Arial", "", 12)
+	pdf.Cell(40, 10, fmt.Sprintf("No. Transaksi: %d", details[0].TransaksiId))
+	pdf.Ln(10)
+	pdf.Cell(40, 10, fmt.Sprintf("Tanggal: %s", details[0].Transaksi.Tanggal.Format("02-01-2006 15:04:05")))
+	pdf.Ln(10)
+	pdf.Cell(40, 10, fmt.Sprintf("Nama Pembeli: %s", details[0].Transaksi.Siswa.NamaSiswa))
+	pdf.Ln(20)
+
+	// Header tabel
+	pdf.SetFont("Arial", "B", 12)
+	pdf.Cell(40, 10, "Menu")
+	pdf.Cell(30, 10, "Harga")
+	pdf.Cell(20, 10, "Qty")
+	pdf.Cell(40, 10, "Subtotal")
+	pdf.Ln(10)
+
+	// Isi tabel
+	pdf.SetFont("Arial", "", 12)
+	var total float64
+	for _, detail := range details {
+		pdf.Cell(40, 10, detail.Menu.NamaMakanan)
+		pdf.Cell(30, 10, fmt.Sprintf("Rp %.2f", detail.Menu.Harga))
+		pdf.Cell(20, 10, fmt.Sprintf("%d", detail.Qty))
+		subtotal := detail.HargaBeli
+		pdf.Cell(40, 10, fmt.Sprintf("Rp %.2f", subtotal))
+		pdf.Ln(10)
+		total += subtotal
+	}
+
+	// Total
+	pdf.Ln(10)
+	pdf.SetFont("Arial", "B", 12)
+	pdf.Cell(90, 10, "TOTAL")
+	pdf.Cell(40, 10, fmt.Sprintf("Rp %.2f", total))
+
+	// Simpan PDF ke buffer
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	// Set header untuk download PDF
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=nota_%s.pdf", transaksiID))
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Length", strconv.Itoa(buf.Len()))
+
+	// Kirim PDF
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
 }

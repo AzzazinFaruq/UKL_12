@@ -31,6 +31,7 @@ func main() {
 	protected.POST("/siswa", controllers.CreateSiswa)
 	protected.PUT("/siswa/:id", controllers.UpdateSiswa)
 	protected.DELETE("/siswa/:id", controllers.DeleteSiswa)
+	protected.GET("/siswa-by-stan/:stand_id", controllers.GetSiswaByStand)
 
 	//Stan
 	protected.GET("/stan", controllers.GetStan)
@@ -41,6 +42,7 @@ func main() {
 
 	//Menu
 	protected.GET("/menu", controllers.GetMenu)
+	protected.GET("/menu-by-stand/:stand_id", controllers.GetMenuByStand)
 	protected.GET("/menu/:id", controllers.GetMenuById)
 	protected.POST("/menu", controllers.AddMenu)
 	protected.PUT("/menu/:id", controllers.UpdateMenu)
@@ -50,12 +52,17 @@ func main() {
 	protected.GET("/transaksi", controllers.GetTransaksi)
 	protected.GET("/transaksi/:id", controllers.GetTransaksiById)
 	protected.POST("/transaksi", controllers.CreateTransaksi)
-	protected.PUT("/transaksi/statupdate", controllers.UpdateStatusTransaksi)
+	protected.PUT("/transaksi/statupdate/:id", controllers.UpdateStatusTransaksi)
+	protected.GET("/transaksi/bulan/:bulan/:tahun", controllers.GetTransaksiByBulan)
+	protected.GET("/rekap/:tahun", controllers.GetRekapBulanan)
+	protected.POST("/transaksi-with-detail", controllers.CreateTransaksiWithDetail)
+	protected.GET("/transaksi/siswa/:siswa_id/:bulan/:tahun", controllers.GetHistoriTransaksiSiswa)
 
 	//Detail
 	protected.GET("/detail", controllers.GetDetail)
 	protected.GET("/detail/:id", controllers.GetDetailById)
 	protected.POST("/detail", controllers.CreateDetail)
+	protected.GET("/print/:id", controllers.PrintNota)
 
 	//Diskon
 	protected.GET("/diskon", controllers.GetAllDiskon)
@@ -63,14 +70,9 @@ func main() {
 	protected.POST("/diskon", controllers.AddDiskon)
 	protected.PUT("/diskon/:id", controllers.UpdateDiskon)
 	protected.DELETE("/diskon/:id", controllers.DeleteDiskon)
-
-
-
-
+	protected.POST("/diskon/menu", controllers.AddDiskonToMenu)
 
 	router.Static("/uploads", "./uploads")
-
-
 
 	router.Run(":6969")
 }

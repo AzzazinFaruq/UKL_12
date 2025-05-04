@@ -92,7 +92,7 @@ func CreateStan(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Siswa created successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Stan created successfully"})
 }
 
 func UpdateStan(c *gin.Context) {
