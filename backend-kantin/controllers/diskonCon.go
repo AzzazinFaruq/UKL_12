@@ -127,24 +127,25 @@ func AddDiskon(c *gin.Context) {
 }
 
 func UpdateDiskon(c *gin.Context) {
-	var diskonn models.Diskon
 	id := c.Param("id")
+	var diskon models.Diskon
+
 	// Cek role admin
 	middlewares.Admin(c)
 	if c.IsAborted() {
 		return
 	}
 
-	if err := setup.DB.First(&diskonn, id).Error; err != nil {
+	if err := setup.DB.First(&diskon, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	var input struct {
-		NamaDiskon       string    `json:"nama_diskon" binding:"required"`
-		PresentaseDiskon string    `json:"presentase_diskon" binding:"required"`
-		TanggalAwal      time.Time `json:"tanggal_awal" binding:"required"`
-		TanggalAkhir     time.Time `json:"tanggal_akhir" binding:"required"`
+		NamaDiskon       string `json:"nama_diskon" binding:"required"`
+		PresentaseDiskon string `json:"presentase_diskon" binding:"required"`
+		TanggalAwal      string `json:"tanggal_awal" binding:"required"`
+		TanggalAkhir     string `json:"tanggal_akhir" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -152,18 +153,30 @@ func UpdateDiskon(c *gin.Context) {
 		return
 	}
 
-	diskon := models.Diskon{
-		NamaDiskon:       input.NamaDiskon,
-		PresentaseDiskon: input.PresentaseDiskon,
-		TanggalAwal:      input.TanggalAwal,
-		TanggalAkhir:     input.TanggalAkhir,
+	// Parse tanggal
+	tanggalAwal, err := time.Parse("2006-01-02", input.TanggalAwal)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal_awal tidak valid. Gunakan format YYYY-MM-DD"})
+		return
 	}
+
+	tanggalAkhir, err := time.Parse("2006-01-02", input.TanggalAkhir)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal_akhir tidak valid. Gunakan format YYYY-MM-DD"})
+		return
+	}
+
+	diskon.NamaDiskon = input.NamaDiskon
+	diskon.PresentaseDiskon = input.PresentaseDiskon
+	diskon.TanggalAwal = tanggalAwal
+	diskon.TanggalAkhir = tanggalAkhir
 
 	if err := setup.DB.Save(&diskon).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"message": "Diskon berhasil diupdate"})
 }
 
 func DeleteDiskon(c *gin.Context) {

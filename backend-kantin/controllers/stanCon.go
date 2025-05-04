@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"backend_golang/models"
 	"backend_golang/middlewares"
+	"backend_golang/models"
 	"backend_golang/setup"
 	"fmt"
 	"net/http"
@@ -97,6 +97,7 @@ func CreateStan(c *gin.Context) {
 
 func UpdateStan(c *gin.Context) {
 	id := c.Param("id")
+	var Stan models.Stan
 
 	// Cek role admin
 	middlewares.Admin(c)
@@ -104,28 +105,50 @@ func UpdateStan(c *gin.Context) {
 		return
 	}
 
-	var input struct {
-		NamaStan    string `json:"nama_stan" binding:"required"`
-		NamaPemilik string `json:"nama_pemilik" binding:"required"`
-		Telp        string `json:"telp" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// Cek apakah stan ada
+	if err := setup.DB.First(&Stan, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Stan not found"})
 		return
 	}
 
-	stan := models.Stan{
-		NamaStan:    input.NamaStan,
-		NamaPemilik: input.NamaPemilik,
-		Telp:        input.Telp,
-	}
+	// Ambil data dari form
+	namaStan := c.PostForm("nama_stan")
+	namaPemilik := c.PostForm("nama_pemilik")
+	telp := c.PostForm("telp")
 
-	if err := setup.DB.Model(&stan).Where("id = ?", id).Updates(&stan).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update stan"})
+	// Validasi input
+	if namaStan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nama stan tidak boleh kosong"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Stan updated successfully"})
+
+	// Handle file upload jika ada
+	file, err := c.FormFile("foto")
+	if err == nil {
+		// Generate unique filename
+		filename := fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename)
+
+		// Save file
+		if err := c.SaveUploadedFile(file, "uploads/siswa/"+filename); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file"})
+			return
+		}
+
+		// Update foto
+		Stan.Foto = filename
+	}
+
+	// Update data stan
+	Stan.NamaStan = namaStan
+	Stan.NamaPemilik = namaPemilik
+	Stan.Telp = telp
+
+	if err := setup.DB.Save(&Stan).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate stan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Stan berhasil diupdate"})
 }
 
 func DeleteStan(c *gin.Context) {
@@ -135,7 +158,7 @@ func DeleteStan(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
-	
+
 	var stan models.Stan
 	if err := setup.DB.Delete(&stan, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete stan"})
