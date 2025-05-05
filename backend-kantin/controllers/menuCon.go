@@ -14,7 +14,7 @@ import (
 func GetMenu(c *gin.Context) {
 	var menu []models.Menu
 
-	if err := setup.DB.Find(&menu).Error; err != nil {
+	if err := setup.DB.Preload("Jenis").Find(&menu).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get Menu"})
 		return
 	}
@@ -193,9 +193,11 @@ func GetMenuByStand(c *gin.Context) {
 		return
 	}
 
-	// Cari menu berdasarkan stand_id
+	// Cari menu berdasarkan stand_id dengan preload Jenis
 	var menu []models.Menu
 	if err := setup.DB.
+		Preload("Jenis").
+		Preload("Stan").
 		Where("stan_id = ?", standIdInt).
 		Find(&menu).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data menu"})

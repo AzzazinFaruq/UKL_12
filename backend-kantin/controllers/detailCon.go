@@ -138,6 +138,7 @@ func PrintNota(c *gin.Context) {
 		Preload("Menu").
 		Preload("Transaksi").
 		Preload("Transaksi.Siswa").
+		Preload("Diskon").
 		Where("transaksi_id = ?", transaksiID).
 		Find(&details).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transaction details"})
@@ -172,6 +173,7 @@ func PrintNota(c *gin.Context) {
 	pdf.Cell(40, 10, "Menu")
 	pdf.Cell(30, 10, "Harga")
 	pdf.Cell(20, 10, "Qty")
+	pdf.Cell(30, 10, "Diskon")
 	pdf.Cell(40, 10, "Subtotal")
 	pdf.Ln(10)
 
@@ -182,6 +184,15 @@ func PrintNota(c *gin.Context) {
 		pdf.Cell(40, 10, detail.Menu.NamaMakanan)
 		pdf.Cell(30, 10, fmt.Sprintf("Rp %.2f", detail.Menu.Harga))
 		pdf.Cell(20, 10, fmt.Sprintf("%d", detail.Qty))
+
+		// Tampilkan diskon jika ada
+		if detail.DiskonId != 0 {
+			presentase, _ := strconv.ParseFloat(detail.Diskon.PresentaseDiskon, 64)
+			pdf.Cell(30, 10, fmt.Sprintf("%.0f%%", presentase))
+		} else {
+			pdf.Cell(30, 10, "-")
+		}
+
 		subtotal := detail.HargaBeli
 		pdf.Cell(40, 10, fmt.Sprintf("Rp %.2f", subtotal))
 		pdf.Ln(10)
@@ -191,7 +202,7 @@ func PrintNota(c *gin.Context) {
 	// Total
 	pdf.Ln(10)
 	pdf.SetFont("Arial", "B", 12)
-	pdf.Cell(90, 10, "TOTAL")
+	pdf.Cell(120, 10, "TOTAL")
 	pdf.Cell(40, 10, fmt.Sprintf("Rp %.2f", total))
 
 	// Simpan PDF ke buffer
